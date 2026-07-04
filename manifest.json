@@ -2,7 +2,7 @@
   "name": "Particle Life — Emergent Systems",
   "short_name": "Particle Life",
   "description": "色ごとの粒子に引力・斥力のルールを与えて観察する人工生命シミュレーター",
-  "start_url": "./index.htm",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
