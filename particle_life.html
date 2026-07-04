@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Particle Life — Emergent Systems</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0a0b0f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Particle Life">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+  :root{
+    --void: #0a0b0f;
+    --panel: #14161d;
+    --panel-line: rgba(255,255,255,0.08);
+    --signal: #7c5cff;
+    --signal-dim: rgba(124,92,255,0.18);
+    --text: #e8e6f0;
+    --text-dim: #6b6d7a;
+    --repel: #ff5c7a;
+    --attract: #4dd9c9;
+  }
+
+  *{ box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body{ margin:0; padding:0; height:100%; overflow:hidden; background:var(--void); overscroll-behavior:none; touch-action:none; }
+  body{ font-family:'Space Grotesk', sans-serif; color:var(--text); }
+
+  #stage{ position:fixed; inset:0; display:block; touch-action:none; }
+
+  .mono{ font-family:'JetBrains Mono', monospace; }
+
+  #hero{
+    position:fixed; top:28px; left:32px; pointer-events:none; user-select:none;
+    z-index:5;
+  }
+  #hero .eyebrow{
+    font-family:'JetBrains Mono', monospace; font-size:11px; letter-spacing:0.18em;
+    color:var(--signal); text-transform:uppercase; margin-bottom:6px;
+  }
+  #hero h1{
+    margin:0; font-size:28px; font-weight:700; letter-spacing:-0.01em; line-height:1;
+  }
+  #hero p{
+    margin:8px 0 0; font-size:13px; color:var(--text-dim); max-width:340px; line-height:1.5;
+  }
+
+  #stats{
+    position:fixed; top:28px; right:32px; z-index:5; text-align:right;
+    font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--text-dim);
+    pointer-events:none;
+  }
+  #stats .num{ color:var(--text); font-size:13px; }
+
+  #panel{
+    position:fixed; left:50%; bottom:24px; transform:translateX(-50%);
+    width:min(920px, calc(100% - 40px));
+    max-height:calc(100vh - 48px);
+    overflow-y:auto;
+    touch-action:pan-y;
+    background:rgba(20,22,29,0.72);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border:1px solid var(--panel-line);
+    border-radius:16px;
+    padding:18px 22px;
+    z-index:10;
+    display:flex; gap:26px; align-items:stretch;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+
+  .col{ display:flex; flex-direction:column; gap:10px; }
+  .col.controls{ flex:1; min-width:0; }
+  .col.matrix{ align-items:center; }
+
+  .row{ display:flex; align-items:center; gap:10px; }
+  .row label{
+    font-family:'JetBrains Mono', monospace; font-size:10px; letter-spacing:0.06em;
+    color:var(--text-dim); text-transform:uppercase; width:92px; flex-shrink:0;
+  }
+  .row .val{
+    font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--signal);
+    width:34px; text-align:right; flex-shrink:0;
+  }
+
+  input[type=range]{
+    -webkit-appearance:none; appearance:none; flex:1; height:3px; border-radius:2px;
+    background:rgba(255,255,255,0.12); outline:none;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; width:13px; height:13px; border-radius:50%;
+    background:var(--signal); cursor:pointer; box-shadow:0 0 8px var(--signal-dim);
+  }
+  input[type=range]::-moz-range-thumb{
+    width:13px; height:13px; border-radius:50%; border:none;
+    background:var(--signal); cursor:pointer;
+  }
+
+  .buttons{ display:flex; gap:8px; margin-top:2px; }
+  button{
+    font-family:'JetBrains Mono', monospace; font-size:11px; letter-spacing:0.04em;
+    text-transform:uppercase; padding:9px 14px; border-radius:9px; cursor:pointer;
+    border:1px solid var(--panel-line); background:rgba(255,255,255,0.03); color:var(--text);
+    transition: background .15s, border-color .15s;
+  }
+  button:hover{ background:rgba(255,255,255,0.08); border-color:rgba(255,255,255,0.2); }
+  button.primary{ background:var(--signal-dim); border-color:var(--signal); color:#dcd4ff; }
+  button.primary:hover{ background:rgba(124,92,255,0.3); }
+
+  .matrix-label{
+    font-family:'JetBrains Mono', monospace; font-size:9px; letter-spacing:0.1em;
+    color:var(--text-dim); text-transform:uppercase; margin-bottom:2px;
+  }
+  #matrixGrid{ display:grid; gap:3px; }
+  .cell{
+    width:20px; height:20px; border-radius:4px; cursor:pointer;
+    border:1px solid rgba(255,255,255,0.06);
+  }
+
+  #hint{
+    position:fixed; bottom:24px; left:32px; z-index:5;
+    font-family:'JetBrains Mono', monospace; font-size:10px; color:var(--text-dim);
+    letter-spacing:0.04em; pointer-events:none;
+    opacity:0.7;
+  }
+
+  #toggleBtn{
+    position:fixed; bottom:24px; right:32px; z-index:11;
+    width:40px; height:40px; border-radius:50%;
+    background:rgba(20,22,29,0.72); backdrop-filter:blur(12px);
+    border:1px solid var(--panel-line); color:var(--text-dim);
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+    font-size:16px; user-select:none;
+    transition: opacity .4s ease;
+  }
+  #toggleBtn:hover{ color:var(--text); border-color:rgba(255,255,255,0.2); }
+
+  #fullscreenBtn{
+    position:fixed; bottom:24px; right:80px; z-index:11;
+    width:40px; height:40px; border-radius:50%;
+    background:rgba(20,22,29,0.72); backdrop-filter:blur(12px);
+    border:1px solid var(--panel-line); color:var(--text-dim);
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+    font-size:14px; user-select:none;
+    transition: opacity .4s ease;
+  }
+  #fullscreenBtn:hover{ color:var(--text); border-color:rgba(255,255,255,0.2); }
+  body.immersive #fullscreenBtn{ opacity:0; }
+  body.immersive:hover #fullscreenBtn{ opacity:1; }
+
+  body.immersive #hero,
+  body.immersive #stats,
+  body.immersive #hint,
+  body.immersive #panel{
+    opacity:0; pointer-events:none;
+  }
+  #hero, #stats, #hint, #panel{
+    transition: opacity .5s ease;
+  }
+  body.immersive #toggleBtn{
+    opacity:0;
+  }
+  body.immersive:hover #toggleBtn,
+  body.immersive.showControls #toggleBtn{
+    opacity:1;
+  }
+
+  @media (max-width: 760px){
+    #panel{ flex-direction:column; gap:14px; }
+    #hero p{ display:none; }
+    #stats{ display:none; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="stage"></canvas>
+
+<div id="hero">
+  <div class="eyebrow">Emergent Systems Experiment</div>
+  <h1>Particle Life</h1>
+  <p>色ごとの粒子に、引力と斥力のルールをランダムに与えるだけ。それだけで群れ・渦・追跡が自然に生まれます。右下のマトリクスをクリックしてルールを直接書き換えられます。</p>
+</div>
+
+<div id="stats" class="mono">
+  <div>PARTICLES <span class="num" id="statCount">0</span></div>
+  <div>SPECIES <span class="num" id="statSpecies">0</span></div>
+  <div>FPS <span class="num" id="statFps">0</span></div>
+</div>
+
+<div id="hint">押しっぱなしで引き寄せ・右クリックで押しのけ / 「H」で鑑賞モード・「F」で全画面</div>
+
+<div id="panel">
+  <div class="col controls">
+    <div class="row">
+      <label>Species</label>
+      <input type="range" id="speciesSlider" min="2" max="8" value="5" step="1">
+      <span class="val" id="speciesVal">5</span>
+    </div>
+    <div class="row">
+      <label>Per Species</label>
+      <input type="range" id="countSlider" min="20" max="220" value="110" step="5">
+      <span class="val" id="countVal">110</span>
+    </div>
+    <div class="row">
+      <label>Friction</label>
+      <input type="range" id="frictionSlider" min="1" max="30" value="8" step="1">
+      <span class="val" id="frictionVal">0.08</span>
+    </div>
+    <div class="row">
+      <label>Force</label>
+      <input type="range" id="forceSlider" min="1" max="20" value="10" step="1">
+      <span class="val" id="forceVal">1.0</span>
+    </div>
+    <div class="row">
+      <label>Radius</label>
+      <input type="range" id="radiusSlider" min="40" max="260" value="140" step="10">
+      <span class="val" id="radiusVal">140</span>
+    </div>
+    <div class="buttons">
+      <button class="primary" id="randomizeBtn">ルールを再生成</button>
+      <button id="resetBtn">粒子をリセット</button>
+      <button id="symmetryBtn">対称ルールに</button>
+    </div>
+  </div>
+  <div class="col matrix">
+    <div class="matrix-label">引力 / 斥力マトリクス</div>
+    <div id="matrixGrid"></div>
+  </div>
+</div>
+
+<div id="fullscreenBtn" title="全画面表示 (Fキー)">⛶</div>
+<div id="toggleBtn" title="鑑賞モード (Hキー)">–</div>
+
+<script>
+(function(){
+  const canvas = document.getElementById('stage');
+  const ctx = canvas.getContext('2d');
+  let W, H, DPR;
+
+  function resize(){
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth; H = window.innerHeight;
+    canvas.width = W * DPR; canvas.height = H * DPR;
+    canvas.style.width = W+'px'; canvas.style.height = H+'px';
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  const palette = ['#ff5c7a', '#4dd9c9', '#ffd166', '#6ab7ff', '#c77dff', '#8bffb0', '#ff9d5c', '#ff6ac1'];
+
+  let params = {
+    species: 5,
+    perSpecies: 110,
+    friction: 0.08,
+    force: 1.0,
+    radius: 140,
+  };
+
+  let matrix = [];
+  let particles = [];
+
+  function randMatrix(n){
+    const m = [];
+    for(let i=0;i<n;i++){
+      m.push([]);
+      for(let j=0;j<n;j++){
+        m[i].push(+(Math.random()*2-1).toFixed(2));
+      }
+    }
+    return m;
+  }
+
+  function symmetrize(){
+    const n = params.species;
+    for(let i=0;i<n;i++){
+      for(let j=i;j<n;j++){
+        const avg = (matrix[i][j] + matrix[j][i]) / 2;
+        matrix[i][j] = matrix[j][i] = +avg.toFixed(2);
+      }
+    }
+    renderMatrixUI();
+  }
+
+  function makeParticles(){
+    particles = [];
+    const n = params.species;
+    for(let s=0; s<n; s++){
+      for(let k=0; k<params.perSpecies; k++){
+        particles.push({
+          x: Math.random()*W,
+          y: Math.random()*H,
+          vx: 0, vy: 0,
+          species: s
+        });
+      }
+    }
+  }
+
+  function initAll(){
+    matrix = randMatrix(params.species);
+    makeParticles();
+    renderMatrixUI();
+  }
+
+  // ---- Spatial grid for performance ----
+  function buildGrid(cellSize){
+    const grid = new Map();
+    const cols = Math.ceil(W/cellSize), rows = Math.ceil(H/cellSize);
+    for(const p of particles){
+      const cx = Math.max(0,Math.min(cols-1, Math.floor(p.x/cellSize)));
+      const cy = Math.max(0,Math.min(rows-1, Math.floor(p.y/cellSize)));
+      const key = cx+','+cy;
+      if(!grid.has(key)) grid.set(key, []);
+      grid.get(key).push(p);
+    }
+    return {grid, cellSize, cols, rows};
+  }
+
+  function neighborsOf(p, gridObj){
+    const {grid, cellSize, cols, rows} = gridObj;
+    const cx = Math.max(0,Math.min(cols-1, Math.floor(p.x/cellSize)));
+    const cy = Math.max(0,Math.min(rows-1, Math.floor(p.y/cellSize)));
+    const out = [];
+    for(let dx=-1; dx<=1; dx++){
+      for(let dy=-1; dy<=1; dy++){
+        const nx = cx+dx, ny = cy+dy;
+        if(nx<0||ny<0||nx>=cols||ny>=rows) continue;
+        const arr = grid.get(nx+','+ny);
+        if(arr) out.push(...arr);
+      }
+    }
+    return out;
+  }
+
+  let pointer = { x:-9999, y:-9999, active:false, mode:null };
+
+  canvas.addEventListener('pointerdown', (e)=>{
+    pointer.active = true; pointer.x = e.clientX; pointer.y = e.clientY;
+    pointer.mode = e.button === 2 ? 'push' : 'pull';
+  });
+  canvas.addEventListener('pointermove', (e)=>{
+    pointer.x = e.clientX; pointer.y = e.clientY;
+  });
+  window.addEventListener('pointerup', ()=>{ pointer.active = false; });
+  canvas.addEventListener('contextmenu', e=>e.preventDefault());
+
+  function step(){
+    const cellSize = Math.max(30, params.radius/2);
+    const gridObj = buildGrid(cellSize);
+    const R = params.radius;
+    const Rsq = R*R;
+
+    for(const p of particles){
+      let fx = 0, fy = 0;
+      const nb = neighborsOf(p, gridObj);
+      for(const q of nb){
+        if(q === p) continue;
+        let dx = q.x - p.x, dy = q.y - p.y;
+        const dsq = dx*dx + dy*dy;
+        if(dsq < 0.0001 || dsq > Rsq) continue;
+        const d = Math.sqrt(dsq);
+        const g = matrix[p.species][q.species];
+        // short-range repulsion + species-based attraction/repulsion
+        let force;
+        const rr = 22;
+        if(d < rr){
+          force = (d/rr - 1) * 1.2;
+        } else {
+          const t = (d - rr) / (R - rr);
+          force = g * (1 - Math.abs(2*t - 1)*0.4) * (1 - t*0.5);
+        }
+        fx += (dx/d) * force;
+        fy += (dy/d) * force;
+      }
+
+      if(pointer.active){
+        const dx = pointer.x - p.x, dy = pointer.y - p.y;
+        const d = Math.sqrt(dx*dx+dy*dy) || 1;
+        if(d < 260){
+          const dir = pointer.mode === 'push' ? -1 : 1;
+          const f = dir * (1 - d/260) * 2.2;
+          fx += (dx/d) * f;
+          fy += (dy/d) * f;
+        }
+      }
+
+      p.vx = (p.vx + fx * params.force * 0.06) * (1 - params.friction);
+      p.vy = (p.vy + fy * params.force * 0.06) * (1 - params.friction);
+    }
+
+    for(const p of particles){
+      p.x += p.vx;
+      p.y += p.vy;
+      if(p.x < 0) p.x += W; if(p.x > W) p.x -= W;
+      if(p.y < 0) p.y += H; if(p.y > H) p.y -= H;
+    }
+  }
+
+  function draw(){
+    ctx.fillStyle = 'rgba(10,11,15,0.28)';
+    ctx.fillRect(0,0,W,H);
+
+    for(const p of particles){
+      ctx.beginPath();
+      ctx.fillStyle = palette[p.species % palette.length];
+      ctx.arc(p.x, p.y, 2.4, 0, Math.PI*2);
+      ctx.fill();
+    }
+  }
+
+  // ---- UI wiring ----
+  const speciesSlider = document.getElementById('speciesSlider');
+  const countSlider = document.getElementById('countSlider');
+  const frictionSlider = document.getElementById('frictionSlider');
+  const forceSlider = document.getElementById('forceSlider');
+  const radiusSlider = document.getElementById('radiusSlider');
+
+  const speciesVal = document.getElementById('speciesVal');
+  const countVal = document.getElementById('countVal');
+  const frictionVal = document.getElementById('frictionVal');
+  const forceVal = document.getElementById('forceVal');
+  const radiusVal = document.getElementById('radiusVal');
+
+  speciesSlider.addEventListener('input', ()=>{
+    params.species = +speciesSlider.value;
+    speciesVal.textContent = params.species;
+    initAll();
+  });
+  countSlider.addEventListener('input', ()=>{
+    params.perSpecies = +countSlider.value;
+    countVal.textContent = params.perSpecies;
+    makeParticles();
+  });
+  frictionSlider.addEventListener('input', ()=>{
+    params.friction = (+frictionSlider.value)/100;
+    frictionVal.textContent = params.friction.toFixed(2);
+  });
+  forceSlider.addEventListener('input', ()=>{
+    params.force = (+forceSlider.value)/10;
+    forceVal.textContent = params.force.toFixed(1);
+  });
+  radiusSlider.addEventListener('input', ()=>{
+    params.radius = +radiusSlider.value;
+    radiusVal.textContent = params.radius;
+  });
+
+  document.getElementById('randomizeBtn').addEventListener('click', ()=>{
+    matrix = randMatrix(params.species);
+    renderMatrixUI();
+  });
+  document.getElementById('resetBtn').addEventListener('click', makeParticles);
+  document.getElementById('symmetryBtn').addEventListener('click', symmetrize);
+
+  function valueToColor(v){
+    // -1 -> repel (red), 0 -> neutral, +1 -> attract (teal)
+    const t = (v+1)/2;
+    const c1 = [255,92,122], c2 = [77,217,201];
+    const mid = [30,32,40];
+    let r,g,b;
+    if(t < 0.5){
+      const k = t/0.5;
+      r = mid[0] + (c1[0]-mid[0])*(1-k);
+      g = mid[1] + (c1[1]-mid[1])*(1-k);
+      b = mid[2] + (c1[2]-mid[2])*(1-k);
+    } else {
+      const k = (t-0.5)/0.5;
+      r = mid[0] + (c2[0]-mid[0])*k;
+      g = mid[1] + (c2[1]-mid[1])*k;
+      b = mid[2] + (c2[2]-mid[2])*k;
+    }
+    return `rgb(${r|0},${g|0},${b|0})`;
+  }
+
+  function renderMatrixUI(){
+    const grid = document.getElementById('matrixGrid');
+    const n = params.species;
+    grid.style.gridTemplateColumns = `repeat(${n}, 20px)`;
+    grid.innerHTML = '';
+    for(let i=0;i<n;i++){
+      for(let j=0;j<n;j++){
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        cell.style.background = valueToColor(matrix[i][j]);
+        cell.title = `${i}→${j}: ${matrix[i][j]}`;
+        cell.addEventListener('click', (e)=>{
+          e.preventDefault();
+          matrix[i][j] = +(Math.random()*2-1).toFixed(2);
+          renderMatrixUI();
+        });
+        grid.appendChild(cell);
+      }
+    }
+  }
+
+  const fullscreenBtn = document.getElementById('fullscreenBtn');
+
+  function toggleFullscreen(){
+    if(!document.fullscreenElement){
+      document.documentElement.requestFullscreen().catch(()=>{});
+    } else {
+      document.exitFullscreen().catch(()=>{});
+    }
+  }
+  fullscreenBtn.addEventListener('click', toggleFullscreen);
+  document.addEventListener('fullscreenchange', ()=>{
+    fullscreenBtn.textContent = document.fullscreenElement ? '⤡' : '⛶';
+  });
+
+  window.addEventListener('keydown', (e)=>{
+    if(e.key === 'f' || e.key === 'F'){ toggleFullscreen(); }
+  });
+
+  const toggleBtn = document.getElementById('toggleBtn');
+
+  function setImmersive(on){
+    document.body.classList.toggle('immersive', on);
+    toggleBtn.textContent = on ? '⛶' : '–';
+    toggleBtn.title = on ? '鑑賞モード解除 (Hキー)' : '鑑賞モード (Hキー)';
+  }
+
+  toggleBtn.addEventListener('click', ()=>{
+    setImmersive(!document.body.classList.contains('immersive'));
+  });
+
+  window.addEventListener('keydown', (e)=>{
+    if(e.key === 'h' || e.key === 'H'){
+      setImmersive(!document.body.classList.contains('immersive'));
+    }
+  });
+
+  // 一定時間マウスが動かないと自動で鑑賞モードに入る
+  let idleTimer = null;
+  const IDLE_MS = 6000;
+  function resetIdleTimer(){
+    if(idleTimer) clearTimeout(idleTimer);
+    idleTimer = setTimeout(()=>{ setImmersive(true); }, IDLE_MS);
+  }
+  window.addEventListener('mousemove', resetIdleTimer);
+  window.addEventListener('pointerdown', resetIdleTimer);
+  window.addEventListener('keydown', resetIdleTimer);
+  resetIdleTimer();
+
+  // stats
+  const statCount = document.getElementById('statCount');
+  const statSpecies = document.getElementById('statSpecies');
+  const statFps = document.getElementById('statFps');
+  let lastT = performance.now(), frames = 0, fpsAccum = 0;
+
+  function loop(t){
+    step();
+    draw();
+
+    frames++;
+    const dt = t - lastT;
+    if(dt >= 500){
+      const fps = Math.round((frames*1000)/dt);
+      statFps.textContent = fps;
+      frames = 0; lastT = t;
+    }
+    statCount.textContent = particles.length;
+    statSpecies.textContent = params.species;
+
+    requestAnimationFrame(loop);
+  }
+
+  initAll();
+  requestAnimationFrame(loop);
+
+  // PWA: サーバー経由(https もしくは localhost)でホストされている場合のみ有効化される
+  if('serviceWorker' in navigator){
+    window.addEventListener('load', ()=>{
+      navigator.serviceWorker.register('sw.js').catch(()=>{
+        // file:// で直接開いている場合はここに来る(想定内・無視してOK)
+      });
+    });
+  }
+})();
+</script>
+</body>
+</html>
