@@ -1,4 +1,4 @@
-const CACHE_NAME = 'particle-life-v2';
+const CACHE_NAME = 'particle-life-v3';
 const ASSETS = [
   './',
   './index.html',
