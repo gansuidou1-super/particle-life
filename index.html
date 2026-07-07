@@ -115,6 +115,12 @@
     color:var(--text-dim); text-transform:uppercase; margin-bottom:2px;
   }
   #matrixGrid{ display:grid; gap:3px; }
+  .swatch{
+    width:20px; height:20px; border-radius:50%;
+    border:1px solid rgba(255,255,255,0.25);
+    cursor:default;
+  }
+  .corner{ width:20px; height:20px; }
   .cell{
     width:20px; height:20px; border-radius:4px; cursor:pointer;
     border:1px solid rgba(255,255,255,0.06);
@@ -227,7 +233,7 @@
     </div>
   </div>
   <div class="col matrix">
-    <div class="matrix-label">引力 / 斥力マトリクス</div>
+    <div class="matrix-label">行=自分 → 列=相手 への反応</div>
     <div id="matrixGrid"></div>
   </div>
 </div>
@@ -479,14 +485,36 @@
   function renderMatrixUI(){
     const grid = document.getElementById('matrixGrid');
     const n = params.species;
-    grid.style.gridTemplateColumns = `repeat(${n}, 20px)`;
+    grid.style.gridTemplateColumns = `20px repeat(${n}, 20px)`;
     grid.innerHTML = '';
+
+    // 左上の角(空白)
+    const corner = document.createElement('div');
+    corner.className = 'corner';
+    grid.appendChild(corner);
+
+    // 列見出し(相手の種類)
+    for(let j=0;j<n;j++){
+      const head = document.createElement('div');
+      head.className = 'swatch';
+      head.style.background = palette[j % palette.length];
+      head.title = `列: この色が「相手」の時`;
+      grid.appendChild(head);
+    }
+
     for(let i=0;i<n;i++){
+      // 行見出し(自分の種類)
+      const rowHead = document.createElement('div');
+      rowHead.className = 'swatch';
+      rowHead.style.background = palette[i % palette.length];
+      rowHead.title = `行: この色が「自分」の時`;
+      grid.appendChild(rowHead);
+
       for(let j=0;j<n;j++){
         const cell = document.createElement('div');
         cell.className = 'cell';
         cell.style.background = valueToColor(matrix[i][j]);
-        cell.title = `${i}→${j}: ${matrix[i][j]}`;
+        cell.title = `自分が${i}(●)の時、相手${j}(●)への反応: ${matrix[i][j]}`;
         cell.addEventListener('click', (e)=>{
           e.preventDefault();
           matrix[i][j] = +(Math.random()*2-1).toFixed(2);
